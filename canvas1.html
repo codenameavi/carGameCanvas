@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Canvas Gaming</title>
+  <script src="js/jquery-latest.js"></script>
+	<script>
+	
+	var ctx, seIntervalId;
+	var rX, roadPartsHeight=225, rY, drY;
+	var carObj, carFire;
+	var roadArray;
+	var randomObstracles, obstraclesCounter, currentObstacles, canvasHeight;
+	var key, difficulty = 1;
+	var score=0, maxLife=3, life=3;
+	
+	$(document).ready(function() {
+		
+		var c = document.getElementById("myCanvas");
+		ctx = c.getContext("2d");
+		
+		canvasHeight = document.getElementById("myCanvas").clientHeight;
+		//alert(canvasHeight);
+		
+		init();
+		roadMove();
+		
+		$('input:radio[name=difficulty]').click(function() {
+			
+			difficulty = parseInt($(this).val());
+		});
+		
+	});
+	
+	var init = function() {
+		
+		if(life<=0) {
+			life	= 3;
+			score	= 0;
+			
+		}
+		
+		rX=0, rY=0, drY=4, obstraclesCounter=0;
+		randomObstracles=[], currentObstacles=[], roadArray=[], key=[];
+		
+		var road1 = document.getElementById("road1");
+		var road2 = document.getElementById("road2");
+		var road3 = document.getElementById("road3");
+		roadArray.push(road1, road2, road3);
+		
+		var carElem = document.getElementById("car");
+		carObj = new Car(carElem, 40, 500, 2, 15);		// carElem, carX, carY, dcarX, speed
+		//carObj.accelarateCar();
+		
+		var obs1 = document.getElementById("obs1");
+		var obs2 = document.getElementById("obs2");
+		var obs3 = document.getElementById("obs3");
+		randomObstracles = [obs1, obs2, obs3];
+		/*randomObstracles.push({'item':obs1, 'posX':40, 'posY':0, 'width':60 ,'height':24}, 
+								{'item':obs2, 'posX':90, 'posY':0, 'width':60 ,'height':24}, 
+								{'item':obs3, 'posX':60, 'posY':0, 'width':60 ,'height':24});
+		*/
+		
+		carFire = document.getElementById("fire");
+		
+		lifeElem = document.getElementById("life");
+		lifeGoneElem = document.getElementById("lifeGone");
+	}
+	
+	var restartGame = function() {
+	
+		//console.log('restartGame..');
+		init();
+		roadMove();
+		
+	}
+	
+	// animate Road over FIXED-Car
+	function roadMove() {
+		ctx.clearRect(0,0, 225,675);
+		
+		//console.log(key[38]);
+		
+		if(key[37])carObj.carTurnLeft();	// left
+		if(key[38])carObj.accelarateCar();	// up
+		if(key[39])carObj.carTurnRight();	// right
+		if(key[40])carObj.stopCar();		// down
+		if(key[32])carObj.discBrake();		// space
+		
+		drawRoads();
+		drawObstracles();
+		carObj.drawCar();
+		checkCollission();
+		drawScores();
+	}
+	
+	document.onkeydown=function(e)
+	{
+		code=window.event?e.keyCode:e.which;
+		
+		if(!carObj.stopFlag) {
+			
+			// first time start the car OR if paused- start the car 
+			if(!key.length || carObj.pauseFlag) {
+				carObj.accelarateCar();
+			}
+			
+			key[code]=1;
+			//console.log('onkeydown: '+code);
+		} else if(carObj.stopFlag && life<=0 && code == 82) {
+			
+			// no life, Car stopped & pressed R key
+			restartGame();
+		}
+		
+		e.preventDefault();
+	}
+	document.onkeyup=function(e)
+	{
+		code=window.event?e.keyCode:e.which;
+		key[code]=0;
+		//console.log(typeof code);
+		//console.log('onkeyup: '+code);
+		
+		if(code == 68)carObj.changeDifficulty();		// D
+		
+		e.preventDefault();
+	}
+	
+	/*$(document).keydown(function(e) {
+		console.log(e.which);
+		
+		if(!carObj.stopFlag)
+		{
+			switch(e.which) {
+				case 37: 	carObj.carTurnLeft();	// left
+							break;
+
+				case 38: 	carObj.accelarateCar();	// up						
+							break;
+							
+				case 39: 	carObj.carTurnRight();	// right
+							break;
+
+				case 40: 	carObj.stopCar();		// down
+							break;
+							
+				case 32:	carObj.discBrake();		// space
+							break;
+
+				default: return; // exit this handler for other keys
+			}
+			e.preventDefault(); // prevent the default action (scroll / move caret)
+		}
+	});*/
+	
+	
+	var checkCollission = function() {
+	
+		for(var i=0; i<currentObstacles.length; i++) {
+			var currentObs = currentObstacles[i];
+			
+			if( ((currentObs.posX+currentObs.width)<carObj.carX+20) ||
+				((carObj.carX+carObj.width)<currentObs.posX+20) || 
+				((currentObs.posY+currentObs.height)<carObj.carY+20) ||
+				((carObj.carY+carObj.height)<currentObs.posY) ){
+					
+					// no collission
+					
+			} else {
+			
+				//console.log('collision with: '+obstraclesCounter);
+				carObj.discBrake();
+				carObj.stopFlag = 1;
+				carObj.setFire();
+				
+				life--;
+				
+				if(life>0) {
+					// restart
+					ctx.font = "40px Arial";
+					ctx.strokeStyle = "RED";
+					ctx.strokeText("Restarting ", 20, 400);
+					ctx.strokeText("Game...", 50, 450);
+					
+					setTimeout(restartGame, 2000);
+				} else {
+					// game over
+					ctx.font = "40px Arial";
+					ctx.fillStyle = "RED";
+					ctx.fillText("Game Over!", 5, 380);
+					
+					ctx.font = "22px Arial";
+					ctx.fillStyle = "#DDD";
+					ctx.fillText("Your Score: "+score, 40, 440);
+					
+					ctx.font = "18px Arial";
+					ctx.fillStyle = "RED";
+					ctx.fillText("Press R to Start again", 25, 490);
+				}
+			}
+		}
+	}
+	
+	var drawScores = function() {
+		
+		// draw score
+		ctx.font = "16px Arial";
+		ctx.fillStyle = "YELLOW";
+		ctx.fillText("Score: "+score, 5, 20);
+		
+		// draw difficulty
+		var diffText = 'Easy';
+		switch(difficulty) {
+			case 1: 	diffText = 'Easy';break;
+			case 2: 	diffText = 'Medium';break;
+			case 3: 	diffText = 'Hard';break;
+			default: 	diffText = 'Error';break;
+		}
+		ctx.fillStyle = "WHITE";
+		ctx.fillText(diffText, 5, 35);
+		
+		// draw life
+		var lifePosX = 150;
+		for(var i=1; i<=maxLife; i++) {
+			
+			lifePosX += 17;
+			
+			if(life>=i)
+				ctx.drawImage(lifeElem, lifePosX, 10, 16, 16);		// 16px X 16px
+			else
+				ctx.drawImage(lifeGoneElem, lifePosX, 10, 16, 16);		// 16px X 16px
+		}
+	}
+	
+	var drawRoads = function() {
+		if(rY > 0){
+			rY = -1*roadPartsHeight+rY;
+			
+			if(roadArray.length>=4) {
+				roadArray.pop();	// remove last item
+			}
+			
+			// set first road image from the Last image
+			var lastArrElem = roadArray[roadArray.length-1];
+			
+			// adds new items to the beginning of an array
+			roadArray.unshift(lastArrElem);
+		}
+		
+		// draw road
+		for(var i=0; i<roadArray.length; i++)
+		{	
+			ctx.drawImage(roadArray[i], rX, rY+i*roadPartsHeight);
+		}
+		rY += drY;
+	}
+	
+	var drawObstracles = function() {
+		
+		if(!currentObstacles.length) {
+			currentObstacles.push( new Obstacles(randomObstracles[0], 20, 145, 0, 60, 24) );		// obstacles which r showing on canvas
+			obstraclesCounter++;
+		}
+		
+		if(currentObstacles[currentObstacles.length-1].posY >= canvasHeight/difficulty)		// last-added Obstacle
+		{
+			//console.log(canvasHeight+' >> '+randomObstracles[0].posY);
+			
+			if(currentObstacles[0].posY >= canvasHeight)
+			{
+				currentObstacles.splice(0,1);		// remove the obstacle which  is out of canvas
+				score += 10*difficulty;
+			}
+			
+			// show a new obstacle in a random X-axis between Road
+			currentObstacles.push( new Obstacles(randomObstracles[obstraclesCounter], 20, 145, 0, 60, 24) );
+			
+			obstraclesCounter++;
+			
+			if(obstraclesCounter >= randomObstracles.length) {
+				obstraclesCounter = 0;
+			}
+		}
+		
+		//console.log(currentObstacles.length);
+		for(var i=0; i<currentObstacles.length; i++) {
+		
+			ctx.drawImage(currentObstacles[i].item, currentObstacles[i].posX, currentObstacles[i].posY);
+			currentObstacles[i].posY += drY;
+		}
+	}
+	
+
+	// Car class
+	var Car = function(carElem, carX, carY, dcarX, speed){
+		
+		// var carX=40, carY=500, dcarX=5, speed = 10;
+		this.carX 	= carX;
+		this.carY 	= carY;
+		this.dcarX 	= dcarX;
+		this.speed 	= speed;
+		this.pauseFlag 	= 1;
+		this.stopFlag	= 0;
+		
+		this.width 	= 60;
+		this.height	= 90;
+		
+		this.drawCar = function() {
+			//console.log( this.carX+', '+this.carY);
+			ctx.drawImage(carElem, this.carX, this.carY, this.width, this.height);	// 60px X 90px
+		}
+		
+		this.carTurnLeft = function () {
+			// keep the car inside of road
+			if(this.carX<12)
+				return false;
+			
+			// dont turn if stopped
+			if(!this.pauseFlag)
+				this.carX -= this.dcarX;
+		}
+		
+		this.carTurnRight = function() {	
+			// keep the car inside of road
+			if(this.carX>145)
+				return false;
+				
+			// dont turn if stopped
+			if(!this.pauseFlag)
+				this.carX += this.dcarX;
+		}
+		
+		this.accelarateCar = function() {	
+			//console.log('Speed: '+this.speed);
+			clearInterval(seIntervalId);
+			seIntervalId = setInterval(roadMove, this.speed);
+			this.pauseFlag = 0;
+			
+			//if(this.speed >10)
+				//this.speed--;		// accelerate
+			this.speed = 8;
+		}
+	
+		this.stopCar = function() {
+			//console.log('Speed: '+this.speed);
+			clearInterval(seIntervalId);
+			if(this.speed <=20) {
+				seIntervalId = setInterval(roadMove, this.speed);
+			} else {
+				this.pauseFlag = 1;
+			}
+			
+			//if(this.speed <=20)
+				//this.speed++;
+			this.speed = 15;
+		}
+		
+		this.discBrake = function() {
+			clearInterval(seIntervalId);
+			this.pauseFlag = 1;
+		}
+		
+		this.setFire = function() {
+			ctx.drawImage(carFire, this.carX+5, this.carY-8, 50, 50);	// 50px X 50px
+		}
+		
+		this.changeDifficulty = function() {
+			difficulty++;
+			if(difficulty>3) {
+				difficulty = 1;
+			}
+		}
+	}
+	
+	// Obstacles class
+	var Obstacles = function(obsItem, minX, maxX, posY, width, height){
+		
+		// 'item':obs1, 'posX':40, 'posY':0, 'width':60 ,'height':24
+		this.item 	= obsItem;
+		
+		//this.posX 	= posX;
+		this.posX = Math.floor(Math.random()*(maxX-minX+1)+minX);	// generate  random number between minX & maxX
+		//console.log('random X: '+this.posX);
+		
+		this.posY	= posY;
+		this.width	= width;
+		this.height	= height;
+	}
+	
+	
+	</script>
+	
+	<style>
+	body {
+		margin:0;
+	}
+	.instructions {
+		background:#EEE;border:solid 1px #999;padding:10px;float:right;margin:200px 30px 0 0;width:300px;;
+	}
+	.title {
+		float:left;color:RED;text-align:center;font-size:20px;margin:300px 0 0 30px
+	}
+	</style>
+</head>
+<body style="min-width:1000px;">
+	
+	<div class="instructions">
+		<strong>Instructions:</strong>
+		<ol>
+			<li>Press UP key to start or accelerate.</li>
+			<li>Press DOWN key to slow down.</li>
+			<li>Press LEFT/RIGHT key to turn left/right.</li>
+			<li>Press SPACE to stop.</li>
+			<li>Press R key to Restart, <i>when game is over</i>.</li>
+			<li>Press D key to change difficulty-level.</li>
+		</ol>
+	</div>
+	
+	<div class="instructions title">
+		<strong>A Simple Car Game</strong>
+	</div>
+	
+	<div style="margin:20px auto;width:225px;height:675px;">
+		<!-- <div style="padding:5px 0;text-align:center; margin-bottom:20px;font-weight:bold">
+			<input type="radio" name="difficulty" value="1" checked="checked"/> Easy | 
+			<input type="radio" name="difficulty" value="2"/> Medium |
+			<input type="radio" name="difficulty" value="3"/> Hard
+		</div> -->
+	
+		<canvas id="myCanvas" width="225" height="630" style="border:1px solid #000000;">
+			Your browser does not support the HTML5 canvas tag.
+		</canvas>
+		
+	</div>
+	
+	
+	
+	<img id="road1" src="images/road1.png" alt="Road1" width="225" height="225" style="display:none"/>
+	<img id="road2" src="images/road2.png" alt="Road2" width="225" height="225" style="display:none"/>
+	<img id="road3" src="images/road3.png" alt="Road3" width="225" height="225" style="display:none"/>
+	
+	<img id="car" src="images/car-top-view1.png" alt="car" width="60" height="90" style="display:none"/>
+	
+	<img id="obs1" src="images/obs1.png" alt="Obstacles" width="60" height="24" style="display:none"/>
+	<img id="obs2" src="images/obs2.png" alt="Obstacles" width="60" height="24" style="display:none"/>
+	<img id="obs3" src="images/obs3.png" alt="Obstacles" width="60" height="24" style="display:none"/>
+	
+	<img id="fire" src="images/Fire_icon_1.png" alt="fire" width="50" height="50" style="display:none"/>
+	
+	<img id="life" src="images/life_1.png" alt="life" width="16" height="16" style="display:none"/>
+	<img id="lifeGone" src="images/life_gone.png" alt="life gone" width="16" height="16" style="display:none"/>
+</body>
+</html>
